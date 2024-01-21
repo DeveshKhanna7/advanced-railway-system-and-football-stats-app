@@ -1,0 +1,128 @@
+--> Create a database for the advanced railway system
+
+CREATE DATABASE IF NOT EXISTS advanced_railway_system;
+USE advanced_railway_system;
+
+
+--> Table to store information about stations
+
+CREATE TABLE IF NOT EXISTS stations (
+    station_id INT PRIMARY KEY AUTO_INCREMENT,
+    station_name VARCHAR(255) NOT NULL,
+    location_point POINT NOT NULL,
+    UNIQUE KEY (station_name),
+    SPATIAL INDEX (location_point)
+);
+
+
+--> Table to store information about trains
+
+CREATE TABLE IF NOT EXISTS trains (
+    train_id INT PRIMARY KEY AUTO_INCREMENT,
+    train_name VARCHAR(255) NOT NULL,
+    capacity INT NOT NULL,
+    UNIQUE KEY (train_name)
+);
+
+
+--> Table to store information about train routes
+
+CREATE TABLE IF NOT EXISTS train_routes (
+    route_id INT PRIMARY KEY AUTO_INCREMENT,
+    train_id INT,
+    departure_station_id INT,
+    arrival_station_id INT,
+    distance_km DECIMAL(10, 2) NOT NULL,
+    estimated_duration INT NOT NULL, -- in minutes
+    PRIMARY KEY (train_id, departure_station_id, arrival_station_id),
+    FOREIGN KEY (train_id) REFERENCES trains(train_id),
+    FOREIGN KEY (departure_station_id) REFERENCES stations(station_id),
+    FOREIGN KEY (arrival_station_id) REFERENCES stations(station_id)
+);
+
+
+--> Table to store information about schedules
+
+CREATE TABLE IF NOT EXISTS schedules (
+    schedule_id INT PRIMARY KEY AUTO_INCREMENT,
+    route_id INT,
+    departure_time DATETIME NOT NULL,
+    arrival_time DATETIME NOT NULL,
+    fare DECIMAL(10, 2) NOT NULL,
+    available_seats INT NOT NULL,
+    PRIMARY KEY (route_id, departure_time),
+    FOREIGN KEY (route_id) REFERENCES train_routes(route_id)
+);
+
+
+--> Table to store information about bookings
+
+CREATE TABLE IF NOT EXISTS bookings (
+    booking_id INT PRIMARY KEY AUTO_INCREMENT,
+    train_id INT,
+    user_id INT,
+    schedule_id INT,
+    seat_number INT,
+    booking_time DATETIME NOT NULL,
+    status ENUM('Reserved', 'Confirmed', 'Cancelled') DEFAULT 'Reserved',
+    PRIMARY KEY (train_id, user_id, schedule_id, seat_number),
+    FOREIGN KEY (train_id) REFERENCES trains(train_id),
+    FOREIGN KEY (schedule_id) REFERENCES schedules(schedule_id)
+);
+
+
+--> Table to store user information (assuming a basic user system)
+
+CREATE TABLE IF NOT EXISTS users (
+    user_id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(255) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    UNIQUE KEY (username),
+    UNIQUE KEY (email)
+);
+
+
+--> Table to store user preferences
+
+CREATE TABLE IF NOT EXISTS user_preferences (
+    user_id INT PRIMARY KEY,
+    preferred_station_id INT,
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (preferred_station_id) REFERENCES stations(station_id)
+);
+
+
+--> Table to store information about train classes
+
+CREATE TABLE IF NOT EXISTS train_classes (
+    class_id INT PRIMARY KEY AUTO_INCREMENT,
+    class_name VARCHAR(50) NOT NULL,
+    UNIQUE KEY (class_name)
+);
+
+
+--> Table to store information about seat reservations by class
+
+CREATE TABLE IF NOT EXISTS seat_reservations (
+    schedule_id INT,
+    class_id INT,
+    available_seats INT NOT NULL,
+    PRIMARY KEY (schedule_id, class_id),
+    FOREIGN KEY (schedule_id) REFERENCES schedules(schedule_id),
+    FOREIGN KEY (class_id) REFERENCES train_classes(class_id)
+);
+
+
+--> Trigger to update available seats after each booking
+
+DELIMITER //
+CREATE TRIGGER after_booking_insert
+AFTER INSERT ON bookings FOR EACH ROW
+BEGIN
+    UPDATE schedules
+    SET available_seats = available_seats - 1
+    WHERE schedule_id = NEW.schedule_id;
+END;
+//
+DELIMITER ;
